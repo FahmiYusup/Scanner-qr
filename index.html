@@ -1,37 +1,103 @@
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <title>Scan QR untuk Check-in</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Check-In Peserta QR Code</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
-<body>
-  <h1>Scan QR Code</h1>
-  <div id="reader" style="width: 300px; margin: auto;"></div>
-  <p id="status">Status: Menunggu scan...</p>
+<body class="bg-gray-100 flex flex-col items-center justify-start min-h-screen py-6">
+
+  <h1 class="text-3xl font-bold text-center mb-6">Silakan Scan QR Code</h1>
+
+  <div id="reader" class="w-full max-w-md mx-auto mb-6 shadow-lg rounded-lg overflow-hidden"></div>
+
+  <div id="status" class="text-center text-lg font-semibold text-gray-700 mb-4"></div>
+
+  <button id="scan-again" onclick="startScanner()" class="hidden mt-4 px-6 py-2 bg-blue-500 text-white rounded-lg shadow hover:bg-blue-600 transition">
+    Scan Lagi 🔄
+  </button>
+
+  <audio id="beep-sound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg"></audio>
 
   <script>
-    const html5QrCode = new Html5Qrcode("reader");
-    const config = { fps: 10, qrbox: 250 };
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxC-kcxtWiT4OK2pjIu7ZtQi4_ozxou2NOmXwe0Dxo3Hwhimiqo8-0B6D4HwJz8OHzepw/exec"; // Ganti dengan URL Web App kamu
+    let html5QrCode;
+    const webAppUrl = "https://script.google.com/macros/s/AKfycbwq8TWSGWH9jCpwyZJ72XtqJFm-p1-ghe_cEp-ivznRmgiwOrptgARWDKGePdmqspCLeA/exec"; // 🔥 GANTI URL INI 🔥
 
-    html5QrCode.start(
-      { facingMode: "environment" },
-      config,
-      qrCodeMessage => {
-        console.log("QR Code terbaca:", qrCodeMessage);
-        document.getElementById("status").innerText = `Membuka data untuk: ${qrCodeMessage}`;
+    function sendQRCodeToScript(qrCode) {
+      fetch(webAppUrl, {
+        method: "POST",
+        body: JSON.stringify({ qr: qrCode }),
+        headers: {
+          "Content-Type": "application/json"
+        }
+      })
+      .then(response => response.json())
+      .then(response => {
+        const beep = document.getElementById("beep-sound");
+        beep.play();
 
-        const redirectUrl = `${WEB_APP_URL}?kode=${encodeURIComponent(qrCodeMessage)}`;
-        window.open(redirectUrl, "_blank"); // buka Web App setelah scan
+        document.getElementById("reader").style.display = "none";
+        document.getElementById("scan-again").classList.remove("hidden");
 
-        html5QrCode.stop(); // stop scanner setelah berhasil
-      },
-      errorMessage => {
-        console.warn(`QR error: ${errorMessage}`);
-      }
-    );
+        if (response.success) {
+          const waktuFormatted = new Date(response.waktu).toLocaleString('id-ID', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+          });
+          document.getElementById("status").innerHTML = `
+            <div class="p-4 mt-4 rounded-lg bg-green-100 text-green-800 shadow animate-pulse">
+              ✅ Check-in Berhasil!<br>
+              Nama: <strong>${response.nama}</strong><br>
+              Nopung: <strong>${response.nopung}</strong><br>
+              Waktu: <strong>${waktuFormatted}</strong>
+            </div>
+          `;
+        } else {
+          document.getElementById("status").innerHTML = `
+            <div class="p-4 mt-4 rounded-lg bg-red-100 text-red-800 shadow animate-bounce">
+              ❌ ${response.message || "QR Code tidak ditemukan."}
+            </div>
+          `;
+        }
+      })
+      .catch(err => {
+        console.error("Fetch error", err);
+        document.getElementById("status").innerHTML = `<div class="text-red-500">Gagal menghubungi server.</div>`;
+      });
+    }
+
+    function startScanner() {
+      document.getElementById("status").innerHTML = "";
+      document.getElementById("reader").style.display = "block";
+      document.getElementById("scan-again").classList.add("hidden");
+
+      html5QrCode = new Html5Qrcode("reader");
+      const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+      html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        qrCodeMessage => {
+          sendQRCodeToScript(qrCodeMessage);
+          html5QrCode.stop();
+        },
+        errorMessage => {
+          console.warn("QR Code no match", errorMessage);
+        }
+      ).catch(err => {
+        console.error("Camera start error", err);
+        document.getElementById("status").innerHTML = `<div class="text-red-500">Gagal membuka kamera: ${err}`;
+      });
+    }
+
+    startScanner(); // langsung mulai saat buka
   </script>
+
 </body>
 </html>
