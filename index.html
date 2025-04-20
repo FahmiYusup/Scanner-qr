@@ -2,73 +2,77 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Check-In Peserta QR Code</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QR Check-In Peserta</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
-<body class="bg-gray-100 flex flex-col items-center justify-start min-h-screen py-6">
+<body class="bg-gradient-to-tr from-indigo-100 to-purple-200 min-h-screen flex flex-col items-center p-4">
 
-  <h1 class="text-3xl font-bold text-center mb-6">Silakan Scan QR Code</h1>
+  <h1 class="text-3xl md:text-5xl font-bold text-indigo-800 mb-2 text-center">Check-In Event</h1>
+  <p id="total-checkin" class="text-sm md:text-lg font-semibold text-gray-600 mb-6">Loading data check-in...</p>
 
-  <div id="reader" class="w-full max-w-md mx-auto mb-6 shadow-lg rounded-lg overflow-hidden"></div>
+  <div id="reader" class="w-full max-w-xs bg-white rounded-xl shadow-lg p-4"></div>
 
-  <div id="status" class="text-center text-lg font-semibold text-gray-700 mb-4"></div>
+  <div id="status" class="text-center text-lg font-medium text-gray-700 mt-6"></div>
 
-  <button id="scan-again" onclick="startScanner()" class="hidden mt-4 px-6 py-2 bg-blue-500 text-white rounded-lg shadow hover:bg-blue-600 transition">
-    Scan Lagi 🔄
-  </button>
+  <button id="scan-again" onclick="startScanner()" class="hidden mt-6 px-6 py-3 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-all shadow-md">🔄 Scan Lagi</button>
 
-  <audio id="beep-sound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg"></audio>
+  <audio id="beep-sound" src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg"></audio>
 
   <script>
     let html5QrCode;
-    const webAppUrl = "https://script.google.com/macros/s/AKfycbwq8TWSGWH9jCpwyZJ72XtqJFm-p1-ghe_cEp-ivznRmgiwOrptgARWDKGePdmqspCLeA/exec"; // 🔥 GANTI URL INI 🔥
+    const webAppUrl = "https://script.google.com/macros/s/AKfycbx6IVsL5fA3zizAjGovRphc1LkjRCyysYk8bjr31fHsvHS7pb9_XW16bgEGWd7tdmYP_A/exec"; // 🔥 Ganti Web App URL disini
+
+    function updateTotalCheckin() {
+      fetch(webAppUrl + "?mode=checkin-total")
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById("total-checkin").innerText = `✅ Total Check-In: ${data.total}`;
+      })
+      .catch(() => {
+        document.getElementById("total-checkin").innerText = `❌ Gagal load total check-in`;
+      });
+    }
 
     function sendQRCodeToScript(qrCode) {
+      document.getElementById("status").innerHTML = `<div class="text-gray-600 mt-4">🔄 Memproses data...</div>`;
+
       fetch(webAppUrl, {
         method: "POST",
         body: JSON.stringify({ qr: qrCode }),
-        headers: {
-          "Content-Type": "application/json"
-        }
+        headers: { "Content-Type": "application/json" }
       })
       .then(response => response.json())
       .then(response => {
         const beep = document.getElementById("beep-sound");
         beep.play();
-
         document.getElementById("reader").style.display = "none";
         document.getElementById("scan-again").classList.remove("hidden");
+        updateTotalCheckin();
 
         if (response.success) {
           const waktuFormatted = new Date(response.waktu).toLocaleString('id-ID', {
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric'
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+            day: '2-digit', month: 'short', year: 'numeric'
           });
           document.getElementById("status").innerHTML = `
-            <div class="p-4 mt-4 rounded-lg bg-green-100 text-green-800 shadow animate-pulse">
+            <div class="p-4 mt-4 bg-green-100 rounded-xl text-green-800 shadow-lg animate-pulse">
               ✅ Check-in Berhasil!<br>
-              Nama: <strong>${response.nama}</strong><br>
-              Nopung: <strong>${response.nopung}</strong><br>
-              Waktu: <strong>${waktuFormatted}</strong>
-            </div>
-          `;
+              <span class="font-bold">Nama:</span> ${response.nama}<br>
+              <span class="font-bold">No Punggung:</span> ${response.nopung}<br>
+              <span class="font-bold">Waktu:</span> ${waktuFormatted}
+            </div>`;
         } else {
           document.getElementById("status").innerHTML = `
-            <div class="p-4 mt-4 rounded-lg bg-red-100 text-red-800 shadow animate-bounce">
-              ❌ ${response.message || "QR Code tidak ditemukan."}
-            </div>
-          `;
+            <div class="p-4 mt-4 bg-red-100 rounded-xl text-red-800 shadow-md animate-bounce">
+              ❌ ${response.message || "QR Code tidak ditemukan atau sudah check-in."}
+            </div>`;
         }
       })
-      .catch(err => {
-        console.error("Fetch error", err);
-        document.getElementById("status").innerHTML = `<div class="text-red-500">Gagal menghubungi server.</div>`;
+      .catch(error => {
+        console.error(error);
+        document.getElementById("status").innerHTML = `<div class="text-red-600 mt-4">❌ Gagal menghubungi server.</div>`;
       });
     }
 
@@ -87,16 +91,15 @@
           sendQRCodeToScript(qrCodeMessage);
           html5QrCode.stop();
         },
-        errorMessage => {
-          console.warn("QR Code no match", errorMessage);
-        }
+        error => console.warn(`QR scan error: ${error}`)
       ).catch(err => {
-        console.error("Camera start error", err);
-        document.getElementById("status").innerHTML = `<div class="text-red-500">Gagal membuka kamera: ${err}`;
+        console.error("Camera error", err);
+        document.getElementById("status").innerHTML = `<div class="text-red-600 mt-4">❌ Gagal membuka kamera: ${err}</div>`;
       });
     }
 
-    startScanner(); // langsung mulai saat buka
+    startScanner(); 
+    updateTotalCheckin(); // Saat load pertama, load total checkin
   </script>
 
 </body>
