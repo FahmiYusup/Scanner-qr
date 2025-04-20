@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QR Check-In Peserta</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gradient-to-tr from-indigo-100 to-purple-200 min-h-screen flex flex-col items-center p-4">
+
+  <h1 class="text-3xl md:text-5xl font-bold text-indigo-800 mb-2 text-center">Check-In Event</h1>
+  <p id="total-checkin" class="text-sm md:text-lg font-semibold text-gray-600 mb-6">Loading data check-in...</p>
+
+  <div id="reader" class="w-full max-w-xs bg-white rounded-xl shadow-lg p-4"></div>
+
+  <div id="status" class="text-center text-lg font-medium text-gray-700 mt-6"></div>
+
+  <button id="scan-again" onclick="startScanner()" class="hidden mt-6 px-6 py-3 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-all shadow-md">🔄 Scan Lagi</button>
+
+  <audio id="beep-sound" src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg"></audio>
+
+  <script>
+    let html5QrCode;
+    const webAppUrl = "https://script.google.com/macros/s/AKfycbwd4gshuRoXFmellZJ-LrZC_OUZKov8AX-O2rQid2tKUiQp7dtp_Lg9kcpnMRSZjIEDtw/exec"; // 🔥 Ganti Web App URL disini
+
+    function updateTotalCheckin() {
+      fetch(webAppUrl + "?mode=checkin-total")
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById("total-checkin").innerText = `✅ Total Check-In: ${data.total}`;
+      })
+      .catch(() => {
+        document.getElementById("total-checkin").innerText = `❌ Gagal load total check-in`;
+      });
+    }
+
+    function sendQRCodeToScript(qrCode) {
+      document.getElementById("status").innerHTML = `<div class="text-gray-600 mt-4">🔄 Memproses data...</div>`;
+
+      fetch(webAppUrl, {
+        method: "POST",
+        body: JSON.stringify({ qr: qrCode }),
+        headers: { "Content-Type": "application/json" }
+      })
+      .then(response => response.json())
+      .then(response => {
+        const beep = document.getElementById("beep-sound");
+        beep.play();
+        document.getElementById("reader").style.display = "none";
+        document.getElementById("scan-again").classList.remove("hidden");
+        updateTotalCheckin();
+
+        if (response.success) {
+          const waktuFormatted = new Date(response.waktu).toLocaleString('id-ID', {
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+            day: '2-digit', month: 'short', year: 'numeric'
+          });
+          document.getElementById("status").innerHTML = `
+            <div class="p-4 mt-4 bg-green-100 rounded-xl text-green-800 shadow-lg animate-pulse">
+              ✅ Check-in Berhasil!<br>
+              <span class="font-bold">Nama:</span> ${response.nama}<br>
+              <span class="font-bold">No Punggung:</span> ${response.nopung}<br>
+              <span class="font-bold">Waktu:</span> ${waktuFormatted}
+            </div>`;
+        } else {
+          document.getElementById("status").innerHTML = `
+            <div class="p-4 mt-4 bg-red-100 rounded-xl text-red-800 shadow-md animate-bounce">
+              ❌ ${response.message || "QR Code tidak ditemukan atau sudah check-in."}
+            </div>`;
+        }
+      })
+      .catch(error => {
+        console.error(error);
+        document.getElementById("status").innerHTML = `<div class="text-red-600 mt-4">❌ Gagal menghubungi server.</div>`;
+      });
+    }
+
+    function startScanner() {
+      document.getElementById("status").innerHTML = "";
+      document.getElementById("reader").style.display = "block";
+      document.getElementById("scan-again").classList.add("hidden");
+
+      html5QrCode = new Html5Qrcode("reader");
+      const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+      html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        qrCodeMessage => {
+          sendQRCodeToScript(qrCodeMessage);
+          html5QrCode.stop();
+        },
+        error => console.warn(`QR scan error: ${error}`)
+      ).catch(err => {
+        console.error("Camera error", err);
+        document.getElementById("status").innerHTML = `<div class="text-red-600 mt-4">❌ Gagal membuka kamera: ${err}</div>`;
+      });
+    }
+
+    startScanner(); 
+    updateTotalCheckin(); // Saat load pertama, load total checkin
+  </script>
+
+</body>
+</html>
